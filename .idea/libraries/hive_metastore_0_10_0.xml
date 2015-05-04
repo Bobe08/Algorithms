@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="hive-metastore-0.10.0">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/hive-metastore-0.10.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

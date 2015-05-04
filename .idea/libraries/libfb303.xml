@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="libfb303">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/libfb303.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
