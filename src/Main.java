@@ -5,22 +5,26 @@ import com.sun.org.apache.bcel.internal.generic.NEW;
 
 import javax.management.Query;
 import java.awt.geom.Point2D;
+import java.io.BufferedReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.sql.*;
 import java.util.Random;
 
 
 public class Main {
 
-    private static DbConnection dbcon=new DbConnection();
-    //!Todo felhasználótól bekérni, hogy hány clustert szeretne
-    private static int clusterNumber=5;
 
-    public static void main(String[] args){
+    //!TODO felhasználóbarát hibakezelés
+    private static DbConnection dbcon = new DbConnection();
+    //!Todo felhasználótól bekérni, hogy hány clustert szeretne
+    private static int clusterNumber = 5;
+
+    public static void main(String[] args) {
         //Make a connection instance
         try {
-            dbcon.connect("hive","");
+            dbcon.connect("hive", "");
         } catch (SQLException e) {
             e.printStackTrace();
         } catch (ClassNotFoundException e) {
@@ -31,42 +35,83 @@ public class Main {
         intialization();
 
         //!TODO konzol bekéri az adattáblát és a két attribútumot amin klaszterezni szeretnénk
-        //Initialize the working dataset
-        //DataSetMetaInformation currentDataset=new DataSetMetaInformation("default.flights_with_less_data",
-          //      new String[]{"Distance", "AirTime"});
 
-        DataSetMetaInformation currentDataset=new DataSetMetaInformation("default.testdata",
-               new String[]{"x", "y"});
+        //Reading the tables and attributes names
+        String tableName = "default.flights_with_less_data";
+        String attributes[] = {"Distance","AirTime"};
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        System.out.print("Enter the dataset name (e.g.: default.testdata):\n (Or hit enter and choose the default dataset) : ");
+        String nameTemp = "";
+        try {
+            nameTemp = br.readLine();
+            if (nameTemp.isEmpty())
+                nameTemp = tableName;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        System.out.print("Enter the first attribute name (x coordinate):\n (Or hit enter and choose the default one) : ");
+        String attributeTemp1 = "";
+        try {
+            attributeTemp1 = br.readLine();
+            if (attributeTemp1.isEmpty())
+                attributeTemp1 = attributes[0];
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        System.out.print("Enter the second attribute name (y coordinate):\n (Or hit enter and choose the default one) : ");
+        String attributeTemp2 = "";
+        try {
+            attributeTemp2 = br.readLine();
+            if (attributeTemp2.isEmpty())
+                attributeTemp2 = attributes[1];
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            simpleQuery(nameTemp, new String[]{attributeTemp1, attributeTemp2});
+            tableName = nameTemp;
+            attributes[0] = attributeTemp1;
+            attributes[1] = attributeTemp2;
+        } catch (SQLException e) {
+            System.out.println("Wrong table or attributes name!");
+        }
+
+
+        //Initialize the working dataset
+        DataSetMetaInformation currentDataset = new DataSetMetaInformation(tableName, attributes);
+
 
         //double[] centroids=new double[]{16700,192780};
         //double[] centroids=new double[]{36000,83000};
         //double[] centroids=new double[]{50,180};
         //centroids=k_mean_algorithm_flights(centroids);
         //centroids=k_mean_algorithm(centroids);
-        //simpleQuery();
+
 
         //!TODO Megkeresni azokat azt a k pontot ahhonnan a klaszterezést indítjuk
         //Initialize starting centroids
-        Point2D.Double[] centroids=range_method(currentDataset,clusterNumber);
+        Point2D.Double[] centroids = range_method(currentDataset, clusterNumber);
 
-        for(Point2D.Double centroid:centroids){
-            System.out.println(centroid.getX()+"--"+centroid.getY());
+        for (Point2D.Double centroid : centroids) {
+            System.out.println(centroid.getX() + "--" + centroid.getY());
         }
 
 
-        Random rand=new Random();
+        Random rand = new Random();
         for (int i = 0; i < 1; i++) {
 
 
-            Point2D.Double[] centroids2 = new Point2D.Double[]{new Point2D.Double(rand.nextInt(50)+50, rand.nextInt(50)+350)
-                                                               ,new Point2D.Double(rand.nextInt(50)+260, rand.nextInt(50)+1700)
-                                                               ,new Point2D.Double(rand.nextInt(50)+130, rand.nextInt(50)+900)
-                                                               };
+            Point2D.Double[] centroids2 = new Point2D.Double[]{new Point2D.Double(rand.nextInt(50) + 50, rand.nextInt(50) + 350)
+                    , new Point2D.Double(rand.nextInt(50) + 260, rand.nextInt(50) + 1700)
+                    , new Point2D.Double(rand.nextInt(50) + 130, rand.nextInt(50) + 900)
+            };
             Point2D.Double[] centroids3 = new Point2D.Double[]{new Point2D.Double(32, 250)
-                    ,new Point2D.Double(222, 1200)
-                    ,new Point2D.Double(310, 1900)
-                    ,new Point2D.Double(150, 800)
-                    ,new Point2D.Double(80, 500)
+                    , new Point2D.Double(222, 1200)
+                    , new Point2D.Double(310, 1900)
+                    , new Point2D.Double(150, 800)
+                    , new Point2D.Double(80, 500)
             };
 
 
@@ -79,8 +124,6 @@ public class Main {
             long starTime = System.nanoTime();
 
 
-
-
             //Finding the centroids
             centroids = find_centroids_k_mean_algorithm_in_2d_faster(centroids, currentDataset);
 
@@ -88,61 +131,58 @@ public class Main {
             Write_to_csv_file("run_information.csv", oldcentroids, centroids, time);
 
             //Writing all the data points and the cluster index to a csv file
-            ClusterPoints(centroids,currentDataset);
+            ClusterPoints(centroids, currentDataset);
 
 
             System.out.println();
             for (int j = 0; j < centroids.length; j++) {
-                System.out.println("x: "+centroids[j].getX()+"-- y: "+centroids[j].getY());
+                System.out.println("x: " + centroids[j].getX() + "-- y: " + centroids[j].getY());
             }
         }
     }
 
     /**
      * Init the starting centroids
-     * @param currentDataset:
-     *            name:the table name, what the program can use after the from statement
-     *            attributes:[0] and [1] are the attributes that, the algorithm use to do 2d clustering
-     * @param clusterNumber: The number of clusters
+     *
+     * @param currentDataset: name:the table name, what the program can use after the from statement
+     *                        attributes:[0] and [1] are the attributes that, the algorithm use to do 2d clustering
+     * @param clusterNumber:  The number of clusters
      * @return
      */
     private static Point2D.Double[] range_method(DataSetMetaInformation currentDataset, int clusterNumber) {
 
         Statement stmt = null;
-        Point2D.Double[] temp= new Point2D.Double[clusterNumber];
-        Point2D.Double min=new Point2D.Double();
-        Point2D.Double max=new Point2D.Double();
+        Point2D.Double[] temp = new Point2D.Double[clusterNumber];
+        Point2D.Double min = new Point2D.Double();
+        Point2D.Double max = new Point2D.Double();
         try {
             //Query the minimum, maximum and average of the datapoints
             stmt = dbcon.connection.createStatement();
-            String query="select min(cast("+currentDataset.attributes[0]+" as double)),min(cast("+currentDataset.attributes[1]+" as double))," +
-                    "max(cast("+currentDataset.attributes[0]+" as double)),max(cast("+currentDataset.attributes[1]+" as double)) " +
+            String query = "select min(cast(" + currentDataset.attributes[0] + " as double)),min(cast(" + currentDataset.attributes[1] + " as double))," +
+                    "max(cast(" + currentDataset.attributes[0] + " as double)),max(cast(" + currentDataset.attributes[1] + " as double)) " +
                     //"avg("+currentDataset.attributes[0]+"),avg("+currentDataset.attributes[1]+") " +
-                    "from "+currentDataset.name;
+                    "from " + currentDataset.name;
             System.out.println(query);
             ResultSet rset = stmt.executeQuery(query);
 
 
-
-
-
-            if(rset.next()){
+            if (rset.next()) {
                 //setting the minimum and maximum
-                min.setLocation(rset.getDouble(1),rset.getDouble(2));
-                max.setLocation(rset.getDouble(3),rset.getDouble(4));
+                min.setLocation(rset.getDouble(1), rset.getDouble(2));
+                max.setLocation(rset.getDouble(3), rset.getDouble(4));
             }
 
-         System.out.println("min: "+min.getX()+"--"+min.getY());
-            System.out.println("max: "+max.getX()+"--"+max.getY());
+            System.out.println("min: " + min.getX() + "--" + min.getY());
+            System.out.println("max: " + max.getX() + "--" + max.getY());
 
         } catch (SQLException e) {
             e.printStackTrace();
         }
 
-        Point2D.Double difference= new Point2D.Double(max.getX()-min.getX(),max.getY()-min.getY());
+        Point2D.Double difference = new Point2D.Double(max.getX() - min.getX(), max.getY() - min.getY());
         for (int i = 0; i < clusterNumber; i++) {
             //Init the starting centroids
-            temp[i]=new Point2D.Double(min.getX()+(difference.getX()/clusterNumber)*i,min.getY()+(difference.getY()/clusterNumber)*i);
+            temp[i] = new Point2D.Double(min.getX() + (difference.getX() / clusterNumber) * i, min.getY() + (difference.getY() / clusterNumber) * i);
         }
         return temp;
     }
@@ -150,9 +190,8 @@ public class Main {
     private static void intialization() {
         Statement stmt = null;
         try {
-            stmt =dbcon.connection.createStatement();
+            stmt = dbcon.connection.createStatement();
             stmt.execute("add jar /usr/tmp/HiveSwarm-1.0.jar");
-
 
 
             stmt.execute("create temporary function least as 'com.livingsocial.hive.udf.GenericUDFLeast'");
@@ -164,32 +203,32 @@ public class Main {
 
     /**
      * Writing all the data points to a csv file
+     *
      * @param centroids: the data point get a centroid index number, always to the nearest centroid.
      */
     private static void ClusterPoints(Point2D.Double[] centroids, DataSetMetaInformation dsmi) {
         //Making the query string
         //The first 2 attributes is the centroids
-        String queryString="select "+dsmi.attributes[0]+","+dsmi.attributes[1]+",(";
-        queryString+=create_choose_least_statement(centroids.length, dsmi);
+        String queryString = "select " + dsmi.attributes[0] + "," + dsmi.attributes[1] + ",(";
+        queryString += create_choose_least_statement(centroids.length, dsmi);
 
-        queryString+=") as order from "+dsmi.name+" ";
-        queryString+="order by order";
+        queryString += ") as order from " + dsmi.name + " ";
+        queryString += "order by order";
 
 
         try {
             //Making the sql statement
             PreparedStatement stmt = dbcon.connection.prepareStatement(queryString);
-            int count=1;
+            int count = 1;
             //Setting the parameters for PreparedStatement (Setting the parameters to Select ... case when...)
-            for(int i=0;i<centroids.length;i++) {
-                stmt.setDouble(count++,centroids[i].getX());
-                stmt.setDouble(count++,centroids[i].getY());
+            for (int i = 0; i < centroids.length; i++) {
+                stmt.setDouble(count++, centroids[i].getX());
+                stmt.setDouble(count++, centroids[i].getY());
             }
-            for(int i=0;i<centroids.length;i++) {
-                stmt.setDouble(count++,centroids[i].getX());
-                stmt.setDouble(count++,centroids[i].getY());
+            for (int i = 0; i < centroids.length; i++) {
+                stmt.setDouble(count++, centroids[i].getX());
+                stmt.setDouble(count++, centroids[i].getY());
             }
-
 
 
             //Execute query
@@ -199,24 +238,24 @@ public class Main {
             //The csv Writer
             final String COMMA = ",";
             final String NEW_LINE_SEPARATOR = "\n";
-            FileWriter fileWriter=null;
+            FileWriter fileWriter = null;
             //!TODO a felhasználótól kérje be a mentés helyét
-            String fileName="result_data.csv";
+            String fileName = "result_data.csv";
             try {
                 //true: overwrite the file not append
-                fileWriter= new FileWriter(fileName,false);
+                fileWriter = new FileWriter(fileName, false);
 
                 //the number of clusters (k)
-                fileWriter.append("clusterNumber,"+centroids.length);
+                fileWriter.append("clusterNumber," + centroids.length);
                 fileWriter.append(NEW_LINE_SEPARATOR);
 
                 //header
-                fileWriter.append("id," + dsmi.attributes[0]+","+dsmi.attributes[1]+",centroidID");
+                fileWriter.append("id," + dsmi.attributes[0] + "," + dsmi.attributes[1] + ",centroidID");
 
                 fileWriter.append(NEW_LINE_SEPARATOR);
                 //Write the data to the file
-                int id=0;
-                while (rs.next()){
+                int id = 0;
+                while (rs.next()) {
                     try {
                         rs.getDouble(1);
                         rs.getDouble(2);
@@ -231,7 +270,8 @@ public class Main {
                         fileWriter.append(String.valueOf(rs.getInt(3)));
 
                         fileWriter.append(NEW_LINE_SEPARATOR);
-                    }catch (SQLException e){}
+                    } catch (SQLException e) {
+                    }
                 }
 
 
@@ -260,14 +300,14 @@ public class Main {
         //Delimiter used in CSV file
         final String COMMA = ",";
         final String NEW_LINE_SEPARATOR = "\n";
-        FileWriter fileWriter=null;
+        FileWriter fileWriter = null;
         try {
             //true: to append the file not to overwrite
-            fileWriter= new FileWriter(fileName,true);
+            fileWriter = new FileWriter(fileName, true);
 
 
             //Write the oldcentroids to a csv file
-            for (Point2D.Double point: oldcentroids) {
+            for (Point2D.Double point : oldcentroids) {
                 fileWriter.append(String.valueOf(point.getX()));
                 fileWriter.append(COMMA);
                 fileWriter.append(String.valueOf(point.getY()));
@@ -275,7 +315,7 @@ public class Main {
             }
 
             //Write the newcentroids to a csv file
-            for (Point2D.Double point: newcentroids) {
+            for (Point2D.Double point : newcentroids) {
                 fileWriter.append(String.valueOf(point.getX()));
                 fileWriter.append(COMMA);
                 fileWriter.append(String.valueOf(point.getY()));
@@ -303,28 +343,28 @@ public class Main {
 
 
     /**
-     *The faster algorithm
+     * The faster algorithm
+     *
      * @param centroids: the given centroids for k-mean algorithm
-     * @param dsmi:
-     *            name:the table name, what the program can use after the from statement
-     *            attributes:[0] and [1] are the attributes that, the algorithm use to do 2d clustering
+     * @param dsmi:      name:the table name, what the program can use after the from statement
+     *                   attributes:[0] and [1] are the attributes that, the algorithm use to do 2d clustering
      * @return returns with the real 2d centroids
      */
-    public static Point2D.Double[] find_centroids_k_mean_algorithm_in_2d_faster(Point2D.Double[] centroids, DataSetMetaInformation dsmi){
+    public static Point2D.Double[] find_centroids_k_mean_algorithm_in_2d_faster(Point2D.Double[] centroids, DataSetMetaInformation dsmi) {
         //Making a temp array
-        Point2D.Double[] centroidsTemp=new Point2D.Double[centroids.length];
+        Point2D.Double[] centroidsTemp = new Point2D.Double[centroids.length];
         //Copying the centroidsTemp to centroids
-        centroidsTemp=centroidCopy(centroids);
+        centroidsTemp = centroidCopy(centroids);
 
         //Making the query string
         //The first 2 attributes is the centroids
-        String queryString="select avg("+dsmi.attributes[0]+"),avg("+dsmi.attributes[1]+"),(";
-        queryString+=create_choose_least_statement(centroids.length, dsmi)+" ";
+        String queryString = "select avg(" + dsmi.attributes[0] + "),avg(" + dsmi.attributes[1] + "),(";
+        queryString += create_choose_least_statement(centroids.length, dsmi) + " ";
 
-        queryString+=") as order from "+dsmi.name+" group by ";
-        queryString+=create_choose_least_statement(centroids.length, dsmi);
+        queryString += ") as order from " + dsmi.name + " group by ";
+        queryString += create_choose_least_statement(centroids.length, dsmi);
 
-        queryString+="order by order";
+        queryString += "order by order";
 
 
         //Making the sql statement
@@ -340,27 +380,25 @@ public class Main {
             try {
 
 
-
-
-                int count=1;
+                int count = 1;
                 //Setting the parameters for PreparedStatement (Setting the parameters to Select ... case when...)
                 for (int i = 0; i < centroids.length; i++) {
-                    stmt.setDouble(count++,centroids[i].getX());
-                    stmt.setDouble(count++,centroids[i].getY());
+                    stmt.setDouble(count++, centroids[i].getX());
+                    stmt.setDouble(count++, centroids[i].getY());
                 }
                 for (int i = 0; i < centroids.length; i++) {
-                    stmt.setDouble(count++,centroids[i].getX());
-                    stmt.setDouble(count++,centroids[i].getY());
+                    stmt.setDouble(count++, centroids[i].getX());
+                    stmt.setDouble(count++, centroids[i].getY());
                 }
 
                 //(Setting the parameters to Group by case when...)
                 for (int i = 0; i < centroids.length; i++) {
-                    stmt.setDouble(count++,centroids[i].getX());
-                    stmt.setDouble(count++,centroids[i].getY());
+                    stmt.setDouble(count++, centroids[i].getX());
+                    stmt.setDouble(count++, centroids[i].getY());
                 }
                 for (int i = 0; i < centroids.length; i++) {
-                    stmt.setDouble(count++,centroids[i].getX());
-                    stmt.setDouble(count++,centroids[i].getY());
+                    stmt.setDouble(count++, centroids[i].getX());
+                    stmt.setDouble(count++, centroids[i].getY());
                 }
 
 
@@ -368,31 +406,31 @@ public class Main {
                 ResultSet rs = stmt.executeQuery();
                 int i = 0;
                 while (rs.next()) {
-                        centroidsTemp[i].setLocation(rs.getDouble(1), rs.getDouble(2));
+                    centroidsTemp[i].setLocation(rs.getDouble(1), rs.getDouble(2));
 
-                        System.out.println(i + ". average x: " + centroidsTemp[i].getX());
-                        System.out.println(i + ". average y: " + centroidsTemp[i].getY());
-                        i++;
+                    System.out.println(i + ". average x: " + centroidsTemp[i].getX());
+                    System.out.println(i + ". average y: " + centroidsTemp[i].getY());
+                    i++;
                 }
 
                 //!Todo Egy számot hozzáadni amiután biztosan leáll az algoritmus
                 //Comparing the centroids and centroidsTemp, if it is equals, the algorithm is ready
-                for (int j=0;j<centroids.length;j++){
-                    if(centroids[j].getX()!=centroidsTemp[j].getX() || centroids[j].getY()!=centroidsTemp[j].getY())
+                for (int j = 0; j < centroids.length; j++) {
+                    if (centroids[j].getX() != centroidsTemp[j].getX() || centroids[j].getY() != centroidsTemp[j].getY())
                         break;
-                    if(j==(centroids.length-1))
-                        run=false;
+                    if (j == (centroids.length - 1))
+                        run = false;
                 }
 
-                if(!run){
+                if (!run) {
                     break;
                 }
 
                 //Copying the centroidsTemp to centroids
-                centroids=centroidCopy(centroidsTemp);
+                centroids = centroidCopy(centroidsTemp);
 
 
-            }catch(SQLException e){
+            } catch (SQLException e) {
                 e.printStackTrace();
             }
 
@@ -401,42 +439,40 @@ public class Main {
     }
 
     private static String create_choose_least_statement(int length, DataSetMetaInformation dsmi) {
-        String queryString="case least(";
+        String queryString = "case least(";
         for (int i = 0; i < length; i++) {
-            queryString+="sqrt(pow(cast("+dsmi.attributes[0]+ " as double)-?,2)+pow(cast("+dsmi.attributes[1]+ " as double)-?,2))";
-            if(i<length-1)
-                queryString+=",";
+            queryString += "sqrt(pow(cast(" + dsmi.attributes[0] + " as double)-?,2)+pow(cast(" + dsmi.attributes[1] + " as double)-?,2))";
+            if (i < length - 1)
+                queryString += ",";
         }
-        queryString+=") ";
+        queryString += ") ";
         for (int i = 0; i < length; i++) {
-            queryString+="when sqrt(pow(cast("+dsmi.attributes[0]+ " as double)-?,2)+pow(cast("+dsmi.attributes[1]+ " as double)-?,2)) then "+i+" ";
+            queryString += "when sqrt(pow(cast(" + dsmi.attributes[0] + " as double)-?,2)+pow(cast(" + dsmi.attributes[1] + " as double)-?,2)) then " + i + " ";
         }
-        queryString+="end ";
+        queryString += "end ";
         return queryString;
     }
 
     /**
-     *
      * @param centroids: the given centroids for k-mean algorithm
-     * @param dsmi:
-     *            name:the table name, what the program can use after the from statement
-     *            attributes:the right attributes name
+     * @param dsmi:      name:the table name, what the program can use after the from statement
+     *                   attributes:the right attributes name
      * @return returns with the real 2d centroids
      */
-    public static Point2D.Double[] find_centroids_k_mean_algorithm_in_2d(Point2D.Double[] centroids, DataSetMetaInformation dsmi){
+    public static Point2D.Double[] find_centroids_k_mean_algorithm_in_2d(Point2D.Double[] centroids, DataSetMetaInformation dsmi) {
         //Making a temp array
-        Point2D.Double[] centroidsTemp=new Point2D.Double[centroids.length];
+        Point2D.Double[] centroidsTemp = new Point2D.Double[centroids.length];
         //Copying the centroidsTemp to centroids
-        centroidsTemp=centroidCopy(centroids);
+        centroidsTemp = centroidCopy(centroids);
 
         //Making the query string
         //The first 2 attributes is the centroids
-        String queryString="select avg("+dsmi.attributes[0]+"),avg("+dsmi.attributes[1]+"),(";
-        queryString+=create_case_when_statement(centroids.length,dsmi);
+        String queryString = "select avg(" + dsmi.attributes[0] + "),avg(" + dsmi.attributes[1] + "),(";
+        queryString += create_case_when_statement(centroids.length, dsmi);
 
-        queryString+=") as order from "+dsmi.name+" group by ";
-        queryString+=create_case_when_statement(centroids.length,dsmi);
-        queryString+="order by order";
+        queryString += ") as order from " + dsmi.name + " group by ";
+        queryString += create_case_when_statement(centroids.length, dsmi);
+        queryString += "order by order";
 
 
         //Making the sql statement
@@ -448,54 +484,54 @@ public class Main {
                 stmt = dbcon.connection.prepareStatement(queryString);
 
 
-                int count=1;
+                int count = 1;
                 //Setting the parameters for PreparedStatement (Setting the parameters to Select ... case when...)
-                for (int i = 0; i < centroids.length-1; i++) {
-                    for(int j=i+1;j<centroids.length;j++) {
-                        stmt.setDouble(count++,centroids[i].getX());
-                        stmt.setDouble(count++,centroids[j].getX());
+                for (int i = 0; i < centroids.length - 1; i++) {
+                    for (int j = i + 1; j < centroids.length; j++) {
+                        stmt.setDouble(count++, centroids[i].getX());
+                        stmt.setDouble(count++, centroids[j].getX());
                     }
                 }
 
                 //(Setting the parameters to Group by case when...)
-                for (int i = 0; i < centroids.length-1; i++) {
-                    for(int j=i+1;j<centroids.length;j++) {
-                        stmt.setDouble(count++,centroids[i].getX());
-                        stmt.setDouble(count++,centroids[j].getX());
+                for (int i = 0; i < centroids.length - 1; i++) {
+                    for (int j = i + 1; j < centroids.length; j++) {
+                        stmt.setDouble(count++, centroids[i].getX());
+                        stmt.setDouble(count++, centroids[j].getX());
                     }
                 }
 
 
                 //Execute query
                 ResultSet rs = stmt.executeQuery();
-                double[] distance=new double[centroids.length];
+                double[] distance = new double[centroids.length];
                 int i = 0;
                 while (rs.next()) {
-                    centroidsTemp[i].setLocation(rs.getDouble(1),rs.getDouble(2));
-                    distance[i]=rs.getDouble(2);
+                    centroidsTemp[i].setLocation(rs.getDouble(1), rs.getDouble(2));
+                    distance[i] = rs.getDouble(2);
 
-                    System.out.println(i+": "+centroidsTemp[i]);
-                    System.out.println(i+". average distance(miles): "+distance[i]);
+                    System.out.println(i + ": " + centroidsTemp[i]);
+                    System.out.println(i + ". average distance(miles): " + distance[i]);
                     i++;
                 }
 
                 //Comparing the centroids and centroidsTemp, if it is equals, the algorithm is ready
-                for (int j=0;j<centroids.length;j++){
-                    if(centroids[j].getX()!=centroidsTemp[j].getX() || centroids[j].getY()!=centroidsTemp[j].getY())
+                for (int j = 0; j < centroids.length; j++) {
+                    if (centroids[j].getX() != centroidsTemp[j].getX() || centroids[j].getY() != centroidsTemp[j].getY())
                         break;
-                    if(j==(centroids.length-1))
-                        run=false;
+                    if (j == (centroids.length - 1))
+                        run = false;
                 }
 
-                if(!run){
+                if (!run) {
                     break;
                 }
 
                 //Copying the centroidsTemp to centroids
-                centroids=centroidCopy(centroidsTemp);
+                centroids = centroidCopy(centroidsTemp);
 
 
-            }catch(SQLException e){
+            } catch (SQLException e) {
                 e.printStackTrace();
             }
 
@@ -504,46 +540,45 @@ public class Main {
     }
 
     /**
-     *
      * @param length: the number of centroids
-     * @param dsmi: the DataSetMetaInformation
+     * @param dsmi:   the DataSetMetaInformation
      * @return: the final case when.. string
      */
-    private static String create_case_when_statement(int length,DataSetMetaInformation dsmi) {
-        String queryString="case ";
-        for (int i = 0; i < length-1; i++) {
-            queryString+="when ";
-            for(int j=i+1;j<length;j++) {
-                queryString+="abs("+dsmi.attributes[0]+"-?)<=abs("+ dsmi.attributes[0]+"-?) ";
-                if(j!=length-1)
-                    queryString+="and ";
+    private static String create_case_when_statement(int length, DataSetMetaInformation dsmi) {
+        String queryString = "case ";
+        for (int i = 0; i < length - 1; i++) {
+            queryString += "when ";
+            for (int j = i + 1; j < length; j++) {
+                queryString += "abs(" + dsmi.attributes[0] + "-?)<=abs(" + dsmi.attributes[0] + "-?) ";
+                if (j != length - 1)
+                    queryString += "and ";
             }
-            queryString+="then "+i+" ";
+            queryString += "then " + i + " ";
         }
-        queryString+="else "+(length-1)+" end ";
+        queryString += "else " + (length - 1) + " end ";
         return queryString;
     }
 
 
-
     /**
      * Copying the centroidsTemp to centroids
+     *
      * @param centroids: the centroids to copy
      * @return: the copied centroids array
      */
-    public static Point2D.Double[] centroidCopy(Point2D.Double[] centroids){
-        Point2D.Double[] centroidsTemp=new Point2D.Double[centroids.length];
+    public static Point2D.Double[] centroidCopy(Point2D.Double[] centroids) {
+        Point2D.Double[] centroidsTemp = new Point2D.Double[centroids.length];
         for (int k = 0; k < centroids.length; k++) {
-            centroidsTemp[k]=new Point2D.Double(centroids[k].getX(),centroids[k].getY());
+            centroidsTemp[k] = new Point2D.Double(centroids[k].getX(), centroids[k].getY());
         }
         return centroidsTemp;
     }
 
     //centroids: the given centroids for k-mean algorithm
-    public static double[] k_mean_algorithm(double[] centroids){
+    public static double[] k_mean_algorithm(double[] centroids) {
         //Copying the input array
-        double[] centroidsTemp=new double[centroids.length];
-        System.arraycopy(centroids,0,centroidsTemp,0,centroids.length);
+        double[] centroidsTemp = new double[centroids.length];
+        System.arraycopy(centroids, 0, centroidsTemp, 0, centroids.length);
 
         //Making the sql statement
         PreparedStatement stmt = null;
@@ -565,33 +600,33 @@ public class Main {
 
                 //Execute query
                 ResultSet rs = stmt.executeQuery();
-                int[] count=new int[centroids.length];
+                int[] count = new int[centroids.length];
                 int i = 0;
                 while (rs.next()) {
                     centroidsTemp[i] = rs.getDouble(1);
-                    count[i]=rs.getInt(2);
+                    count[i] = rs.getInt(2);
 
-                    System.out.println(i+": "+centroidsTemp[i]);
-                    System.out.println(i+". element count: "+count[i]);
+                    System.out.println(i + ": " + centroidsTemp[i]);
+                    System.out.println(i + ". element count: " + count[i]);
                     i++;
                 }
 
                 //Comparing the centroids and centroidsTemp, if it is equals, the algorithm is ready
-                for (int j=0;j<centroids.length;j++){
-                    if(centroids[j]!=centroidsTemp[j])
+                for (int j = 0; j < centroids.length; j++) {
+                    if (centroids[j] != centroidsTemp[j])
                         break;
-                    if(j==(centroids.length-1))
-                        run=false;
+                    if (j == (centroids.length - 1))
+                        run = false;
                 }
 
-                if(!run){
+                if (!run) {
                     break;
                 }
 
                 //Copying the centroidsTemp to centroids
-                System.arraycopy(centroidsTemp,0,centroids,0,centroids.length);
+                System.arraycopy(centroidsTemp, 0, centroids, 0, centroids.length);
 
-            }catch(SQLException e){
+            } catch (SQLException e) {
                 e.printStackTrace();
             }
 
@@ -600,10 +635,10 @@ public class Main {
     }
 
     //centroids: the given centroids for k-mean algorithm
-    public static double[] k_mean_algorithm_flights(double[] centroids){
+    public static double[] k_mean_algorithm_flights(double[] centroids) {
         //Copying the input array
-        double[] centroidsTemp=new double[centroids.length];
-        System.arraycopy(centroids,0,centroidsTemp,0,centroids.length);
+        double[] centroidsTemp = new double[centroids.length];
+        System.arraycopy(centroids, 0, centroidsTemp, 0, centroids.length);
 
         //Making the sql statement
         PreparedStatement stmt = null;
@@ -625,34 +660,34 @@ public class Main {
 
                 //Execute query
                 ResultSet rs = stmt.executeQuery();
-                double[] distance=new double[centroids.length];
+                double[] distance = new double[centroids.length];
                 int i = 0;
                 while (rs.next()) {
                     centroidsTemp[i] = rs.getDouble(1);
-                    distance[i]=rs.getDouble(2);
+                    distance[i] = rs.getDouble(2);
 
-                    System.out.println(i+": "+centroidsTemp[i]);
-                    System.out.println(i+". average distance(miles): "+distance[i]);
-                    System.out.println(i+". element count: "+rs.getInt(3));
+                    System.out.println(i + ": " + centroidsTemp[i]);
+                    System.out.println(i + ". average distance(miles): " + distance[i]);
+                    System.out.println(i + ". element count: " + rs.getInt(3));
                     i++;
                 }
 
                 //Comparing the centroids and centroidsTemp, if it is equals, the algorithm is ready
-                for (int j=0;j<centroids.length;j++){
-                    if(centroids[j]!=centroidsTemp[j])
+                for (int j = 0; j < centroids.length; j++) {
+                    if (centroids[j] != centroidsTemp[j])
                         break;
-                    if(j==(centroids.length-1))
-                        run=false;
+                    if (j == (centroids.length - 1))
+                        run = false;
                 }
 
-                if(!run){
+                if (!run) {
                     break;
                 }
 
                 //Copying the centroidsTemp to centroids
-                System.arraycopy(centroidsTemp,0,centroids,0,centroids.length);
+                System.arraycopy(centroidsTemp, 0, centroids, 0, centroids.length);
 
-            }catch(SQLException e){
+            } catch (SQLException e) {
                 e.printStackTrace();
             }
 
@@ -661,23 +696,10 @@ public class Main {
     }
 
 
-    public static void simpleQuery(){
+    public static void simpleQuery(String name, String[] attributes) throws SQLException {
         Statement stmt = null;
-        try {
-            stmt = dbcon.connection.createStatement();
-            ResultSet rset = stmt.executeQuery("select avg(AirTime),avg(Distance) from default.flights_with_less_data group by least(AirTime, Distance) limit 50");
-
-            int i=0;
-            while(rset.next()){
-                System.out.println(i+": "+rset.getDouble(1)+"--"+rset.getDouble(2)+"--"+rset.getDouble(2));
-                i++;
-            }
-
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        stmt = dbcon.connection.createStatement();
+        ResultSet rset = stmt.executeQuery("select " + attributes[0] + "," + attributes[1] + " from " + name + " limit 1");
 
     }
-
 }
